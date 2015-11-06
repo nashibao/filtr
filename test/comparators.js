@@ -46,6 +46,13 @@ describe('comparator', function () {
     comparator.$all(["t1","t2","t3"],[/t4/im]).should.be.false;
   });
 
+  it('"array to array" $eq should work', function () {
+    comparator.$eq([1, 2], [1, 2]).should.be.true;
+    comparator.$eq([1, 2], [2, 1]).should.be.false;
+    comparator.$eq([1, 2], [1]).should.be.false;
+    comparator.$eq([1, 2], [1, 2, 3]).should.be.false;
+  });
+
   it('$exists should work', function () {
     var a = undefined
       , b = {c: 'hi'};
@@ -71,11 +78,17 @@ describe('comparator', function () {
   it('$in should work', function () {
     comparator.$in(1,[0,1,2]).should.be.true;
     comparator.$in(4,[0,1,2]).should.be.false;
+    comparator.$in([4],[0,1,2]).should.be.false;
+    comparator.$in([0,1,2],[0,1,2]).should.be.true;
+    comparator.$in([0,4],[0,1,2]).should.be.true;
   });
 
   it('$nin should work', function () {
     comparator.$nin(1,[0,1,2]).should.be.false;
     comparator.$nin(4,[0,1,2]).should.be.true;
+    comparator.$nin([4],[0,1,2]).should.be.true;
+    comparator.$nin([0,1,2],[0,1,2]).should.be.false;
+    comparator.$nin([0,4],[0,1,2]).should.be.false;
   });
 
   it('$size should work', function () {
