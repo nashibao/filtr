@@ -16,6 +16,17 @@ describe('Query', function () {
     Q.test(11, { type: 'single' }).should.be.false;
   });
 
+  it('should parse a single query 2', function () {
+    var query = { $lt: 2 }
+      , Q = filtr(query);
+    Q.stack.should.have.length(1);
+    Q.test(0, { type: 'single' }).should.be.true;
+    Q.test(1, { type: 'single' }).should.be.true;
+    Q.test(2, { type: 'single' }).should.be.false;
+    Q.test(3, { type: 'single' }).should.be.false;
+  });
+
+
   it('should parse a lengthed query', function () {
     var query = { $lt: 10, $gt: 5 }
       , Q = filtr(query);
@@ -159,11 +170,38 @@ describe('Query', function () {
       Q.test({ hello: 'universe' }, { type: 'single' }).should.be.true;
     });
 
+    it('should assume $eq if no comparator provided - string("null")', function () {
+      var query = { 'hello': 'null' }
+        , Q = filtr(query);
+      Q.stack.should.have.length(1);
+      Q.test({ hello: 'null' }, { type: 'single' }).should.be.true;
+    });
+
     it('should assume $eq if no comparator provided - number', function () {
       var query = { 'hello': 42 }
         , Q = filtr(query);
       Q.stack.should.have.length(1);
       Q.test({ hello: 42 }, { type: 'single' }).should.be.true;
+    });
+
+    it('should assume $eq if no comparator provided - number(0)', function () {
+      var query = { 'hello': 0 }
+        , Q = filtr(query);
+      Q.stack.should.have.length(1);
+      Q.test({ hello: 0 }, { type: 'single' }).should.be.true;
+      Q.test({}, { type: 'single' }).should.be.false;
+      Q.test({ hello: null }, { type: 'single' }).should.be.false;
+    });
+
+    it('should assume $eq if no comparator provided - null', function () {
+      var query = { 'hello': null }
+        , Q = filtr(query);
+      Q.stack.should.have.length(1);
+      Q.test({ hello: 0 }, { type: 'single' }).should.be.false;
+      Q.test({ hello: null }, { type: 'single' }).should.be.true;
+
+      // https://docs.mongodb.com/v3.2/tutorial/query-for-null-fields/
+      Q.test({}, { type: 'single' }).should.be.true;
     });
 
     it('should assume $eq if no comparator provided - boolean', function () {
@@ -195,6 +233,108 @@ describe('Query', function () {
         , Q = filtr(query);
       Q.stack.should.have.length(1);
       Q.test({ hello: {universe: [{ parent: 'filtr'}]} }, { type: 'single' }).should.be.false;
+    });
+
+    it('should assume if array to array: 配列の検索', function () {
+      var query = { 'arrayField': [ 'abc', 'def', 'ghi'] }
+        , Q = filtr(query);
+      Q.stack.should.have.length(1);
+      Q.test({ 'arrayField': ['abc', 'def', 'ghi'] }, { type: 'single' }).should.be.true;
+    });
+
+    it('should assume if array to array: 同じ値が重複しているケース', function () {
+      var query = { 'arrayField': [ 'abc', 'def', 'ghi'] }
+        , Q = filtr(query);
+      Q.stack.should.have.length(1);
+      Q.test({ 'arrayField': ['abc', 'def', 'ghi', 'abc'] }, { type: 'single' }).should.be.false;
+    });
+    it('should assume if array to array: 並び順が違うケース', function () {
+      var query = { 'arrayField': [ 'abc', 'def', 'ghi'] }
+        , Q = filtr(query);
+      Q.stack.should.have.length(1);
+      Q.test({ 'arrayField': ['abc', 'ghi', 'def'] }, { type: 'single' }).should.be.false;
+    });
+
+    it('should assume $eq if array to array', function () {
+      var query = { 'arrayField': { $eq: [ 'abc', 'def', 'ghi'] } }
+        , Q = filtr(query);
+      Q.stack.should.have.length(1);
+      Q.test({ 'arrayField': ['abc', 'def', 'ghi'] }, { type: 'single' }).should.be.true;
+    });
+
+    it('should not $eq', function () {
+      var query = { 'arrayField': [ /abc/im ] }
+        , Q = filtr(query);
+      Q.stack.should.have.length(1);
+      Q.test({ 'arrayField': ['abc', 'def', 'ghi'] }, { type: 'single' }).should.be.false;
+    });
+
+    it('should not $eq', function () {
+      var query = { 'arrayField': [ /abc/im, /def/im, /ghi/im ] }
+        , Q = filtr(query);
+      Q.stack.should.have.length(1);
+      Q.test({ 'arrayField': ['abc', 'def', 'ghi'] }, { type: 'single' }).should.be.false;
+    });
+
+    it('should parse an array access query', function () {
+      var query = { 'arrayField.0': 'abc' }
+          , Q = filtr(query);
+      Q.stack.should.have.length(1);
+      Q.test({ 'arrayField': ['abc', 'def', 'ghi'] }, { type: 'single' }).should.be.true;
+      Q.test({ 'arrayField': ['def', 'abc', 'ghi'] }, { type: 'single' }).should.be.false;
+
+      var query2 = { 'arrayField.1': 'abc' }
+          , Q2 = filtr(query2);
+      Q2.stack.should.have.length(1);
+      Q2.test({ 'arrayField': ['abc', 'def', 'ghi'] }, { type: 'single' }).should.be.false;
+      Q2.test({ 'arrayField': ['def', 'abc', 'ghi'] }, { type: 'single' }).should.be.true;
+    });
+
+    it('should $ne work', function () {
+      var query = {'sets': {$ne: 'Chrome'}}
+        , Q = filtr(query);
+      Q.stack.should.have.length(1);
+      Q.test({sets: ['Chrome', 'abc']}, {type: 'single'}).should.be.false;
+      Q.test({sets: ['Firefox', 'abc']}, {type: 'single'}).should.be.true;
+    });
+
+    it('should $eq work', function () {
+      var query = {'sets': {$eq: 'Chrome'}}
+        , Q = filtr(query);
+      Q.stack.should.have.length(1);
+      Q.test({sets: ['Chrome', 'abc']}, {type: 'single'}).should.be.true;
+      Q.test({sets: ['Firefox', 'abc']}, {type: 'single'}).should.be.false;
+    });
+
+    it('should regexp $ne work', function () {
+      var query = {'sets': {$ne: /Chrome/}}
+        , Q = filtr(query);
+      Q.stack.should.have.length(1);
+      Q.test({sets: ['Chrome', 'abc']}, {type: 'single'}).should.be.false;
+      Q.test({sets: ['Firefox', 'abc']}, {type: 'single'}).should.be.true;
+    });
+
+    it('should regexp $eq work', function () {
+      var query = {'sets': {$eq: /Chrome/}}
+        , Q = filtr(query);
+      Q.stack.should.have.length(1);
+      Q.test({sets: ['Chrome', 'abc']}, {type: 'single'}).should.be.true;
+      Q.test({sets: ['Firefox', 'abc']}, {type: 'single'}).should.be.false;
+    });
+
+    it('should regexp $eq work', function () {
+      var query = {'sets': /Chrome/}
+        , Q = filtr(query);
+      Q.stack.should.have.length(1);
+      Q.test({sets: ['Chrome', 'abc']}, {type: 'single'}).should.be.true;
+      Q.test({sets: ['Firefox', 'abc']}, {type: 'single'}).should.be.false;
+    });
+
+    it('should regexp $eq work appropriately', function () {
+      var query = {'test': /f/}
+        , Q = filtr(query);
+      Q.stack.should.have.length(1);
+      Q.test({}, {type: 'single'}).should.be.false;
     });
 
   });
